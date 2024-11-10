@@ -1,8 +1,14 @@
 <p align="center"><img src="https://consumet.org/images/consumetlogo.png" width="175"/></p>
 
-<h1 align="center"> consumet.ts </h1>
+<h1 align="center"> consumet.ts with WHVX Megacloud API Support</h1>
 
 consumet.ts is a Node library which provides high-level APIs to get information about several entertainment mediums like books, movies, comics, anime, manga, etc.
+
+This particular fork gets FlixHQ links from the WHVX megacloud API. You must have a WHVX megacloud API token to use the API. 
+
+To use the WHVX Megacloud API, in the script you're using this package in, set the MEGACLOUD_TOKEN environment variable with your WHVX Megacloud API token.
+
+To get a WHVX Megacloud API token, email dev@whvx.net or contact .trainreq on Discord. 
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@consumet/extensions">
@@ -11,11 +17,8 @@ consumet.ts is a Node library which provides high-level APIs to get information 
   <a href="https://github.com/consumet/consumet.ts/actions/workflows/npm-publish.yml">
     <img src="https://github.com/consumet/consumet.ts/actions/workflows/npm-publish.yml/badge.svg" alt="npm (scoped)">
   </a>
-    <a href="https://discord.gg/qTPfvMxzNH">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="Prs are welcome">
-  </a>
-    <a href="https://discord.gg/qTPfvMxzNH">
-      <img src="https://img.shields.io/discord/987492554486452315?color=7289da&label=discord&logo=discord&logoColor=7289da" alt="Discord">
+    <a href="https://discord.gg/t9utDXUb">
+      <img src="https://img.shields.io/discord/987492554486452315?color=7289da&label=discord&logo=discord&logoColor=7289da" alt="VidBinge Discord to get WHVX Megacloud API Token">
     </a>
       <a href="https://github.com/consumet/consumet.ts/blob/master/LICENSE">
     <img src="https://img.shields.io/npm/l/@consumet/extensions" alt="GitHub">
