@@ -1,6 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const rabbit_1 = require("./rabbit");
 const models_1 = require("../models");
 const utils_1 = require("../utils");
 class VidCloud extends models_1.VideoExtractor {
@@ -23,7 +22,29 @@ class VidCloud extends models_1.VideoExtractor {
                         'User-Agent': utils_1.USER_AGENT,
                     },
                 };
-                const res = await (0, rabbit_1.main)(id);
+
+                // Get the domain from the URL
+                const fullUrl = new URL(videoUrl.href);
+                const domain = fullUrl.hostname;
+
+                // Get the token from environment variables
+                const token = process.env.MEGACLOUD_TOKEN;
+                if (!token) {
+                    throw new Error('MEGACLOUD_TOKEN is not defined in environment variables');
+                }
+
+                // Use fetch to make the HTTP GET request to WHVX megacloud API
+                const reqUrl = `https://megacloud.whvx.net/fetch?id=${id}&host=${domain}&serverId=1&token=${token}`;
+                const response = await fetch(reqUrl);
+
+                // Check if the response is ok (status code 200-299)
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Parse the JSON response
+                const res = await response.json();
+
                 const sources = res.sources;
                 this.sources = sources.map((s) => ({
                     url: s.file,
