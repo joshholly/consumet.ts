@@ -10,13 +10,14 @@ import {
   IMovieResult,
   ISearch,
 } from '../../models';
-import { MixDrop, VidCloud } from '../../extractors';
+import { MixDrop, VidCloud, Voe } from '../../extractors';
 
-class FlixHQ extends MovieParser {
-  override readonly name = 'FlixHQ';
-  protected override baseUrl = 'https://flixhq.to';
-  protected override logo = 'https://upload.wikimedia.org/wikipedia/commons/7/7a/MyAnimeList_Logo.png';
-  protected override classPath = 'MOVIES.FlixHQ';
+class MyFlixerz extends MovieParser {
+  override readonly name = 'MyFlixer';
+  protected override baseUrl = 'https://myflixerz.to';
+  protected override logo =
+    'https://myflixerz.to/images/group_1/theme_7/logo.png?v=0.1';
+  protected override classPath = 'MOVIES.MyFlixerz';
   override supportedTypes = new Set([TvType.MOVIE, TvType.TVSERIES]);
 
   /**
@@ -52,7 +53,7 @@ class FlixHQ extends MovieParser {
           releaseDate: isNaN(parseInt(releaseDate)) ? undefined : releaseDate,
           seasons: releaseDate.includes('SS') ? parseInt(releaseDate.split('SS')[1]) : undefined,
           type:
-            $(el).find('div.film-detail > div.fd-infor > span.float-right').text() === 'Movie'
+            $(el).find('div.film-detail > div.fd-infor > span:nth-child(4)').text() === 'Movie'
               ? TvType.MOVIE
               : TvType.TVSERIES,
         });
@@ -84,7 +85,7 @@ class FlixHQ extends MovieParser {
       const recommendationsArray: IMovieResult[] = [];
 
       $(
-        'div.movie_information > div.container > div.m_i-related > div.film-related > section.block_area > div.block_area-content > div.film_list-wrap > div.flw-item'
+        'div.container > section.block_area > div.block_area-content > div.film_list-wrap > div.flw-item'
       ).each((i, el) => {
         recommendationsArray.push({
           id: $(el).find('div.film-poster > a').attr('href')?.slice(1)!,
@@ -93,39 +94,68 @@ class FlixHQ extends MovieParser {
           duration:
             $(el).find('div.film-detail > div.fd-infor > span.fdi-duration').text().replace('m', '') ?? null,
           type:
-            $(el).find('div.film-detail > div.fd-infor > span.fdi-type').text().toLowerCase() === 'tv'
+            $(el).find('div.film-detail > div.fd-infor > span.fdi-item').eq(1).text().trim().toLowerCase() ===
+            'tv'
               ? TvType.TVSERIES
               : TvType.MOVIE ?? null,
         });
       });
 
-      const uid = $('.watch_block').attr('data-id')!;
-      movieInfo.cover = $('div.w_b-cover').attr('style')?.slice(22).replace(')', '').replace(';', '');
+      const uid = $('.detail_page-watch').attr('data-id')!;
+      movieInfo.cover = $('.cover_follow').attr('style')?.slice(22).replace(')', '').replace(';', '');
       movieInfo.title = $('.heading-name > a:nth-child(1)').text();
-      movieInfo.image = $('.m_i-d-poster > div:nth-child(1) > img:nth-child(1)').attr('src');
-      movieInfo.description = $('.description').text();
+      movieInfo.image = $('.dp-i-c-poster > div:nth-child(1) > img:nth-child(1)').attr('src');
+      movieInfo.description = $('.description')
+        .text()
+        .replace(/^Overview:\s*/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
       movieInfo.type = movieInfo.id.split('/')[0] === 'tv' ? TvType.TVSERIES : TvType.MOVIE;
-      movieInfo.releaseDate = $('div.row-line:nth-child(3)').text().replace('Released: ', '').trim();
-      movieInfo.genres = $('div.row-line:nth-child(2) > a')
+      movieInfo.releaseDate = $('div.row > div.col-xl-5 .row-line')
+        .eq(0)
+        .text()
+        .replace('Released: ', '')
+        .trim();
+      movieInfo.genres = $('div.row >div.col-xl-5 .row-line')
+        .eq(1)
+        .find('a')
         .map((i, el) => $(el).text().split('&'))
         .get()
         .map(v => v.trim());
-      movieInfo.casts = $('div.row-line:nth-child(5) > a')
+      movieInfo.casts = $('div.row > div.col-xl-5 .row-line')
+        .eq(2)
+        .find('a')
         .map((i, el) => $(el).text())
         .get();
-      movieInfo.tags = $('div.row-line:nth-child(6) > h2')
-        .map((i, el) => $(el).text())
+      movieInfo.tags = $('div.row-tags > h2')
+        .map((i, el) => $(el).text().replace(/\s+/g, ' ').trim())
         .get();
-      movieInfo.production = $('div.row-line:nth-child(4) > a:nth-child(2)').text();
-      movieInfo.country = $('div.row-line:nth-child(1) > a:nth-child(2)').text();
-      movieInfo.duration = $('span.item:nth-child(3)').text();
-      movieInfo.rating = parseFloat($('span.item:nth-child(2)').text());
+      movieInfo.production = $('div.row > div.col-xl-6 .row-line')
+        .eq(2)
+        .find('a')
+        .map((i, el) => $(el).text().trim())
+        .get()
+        .join(', ');
+      movieInfo.country = $('div.row > div.col-xl-6 .row-line').eq(1).find('a').text().trim();
+      movieInfo.duration = $('div.row > div.col-xl-6 .row-line')
+        .eq(0)
+        .text()
+        .replace('Duration: ', '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      movieInfo.rating = parseFloat($('.btn-imdb').text().replace('IMDB: ', '').trim());        
       movieInfo.recommendations = recommendationsArray as any;
-      const ajaxReqUrl = (id: string, type: string, isSeasons: boolean = false) =>
-        `${this.baseUrl}/ajax/${type === 'movie' ? type : `v2/${type}`}/${
-          isSeasons ? 'seasons' : 'episodes'
-        }/${id}`;
-
+      const ajaxReqUrl = (id: string, type: string, isSeasons: boolean = false) => {
+        if (type === 'tv' && isSeasons) {
+          return `${this.baseUrl}/ajax/season/list/${id}`;
+        } else if (type === 'season') {
+          return `${this.baseUrl}/ajax/season/episodes/${id}`;
+        } else {
+          return `${this.baseUrl}/ajax/${type === 'movie' ? type : `v2/${type}`}/${
+            isSeasons ? 'seasons' : 'episodes'
+          }/${id}`;
+        }
+      };      
       if (movieInfo.type === TvType.TVSERIES) {
         const { data } = await this.client.get(ajaxReqUrl(uid, 'tv', true));
         const $$ = load(data);
@@ -138,33 +168,28 @@ class FlixHQ extends MovieParser {
         for (const id of seasonsIds) {
           const { data } = await this.client.get(ajaxReqUrl(id, 'season'));
           const $$$ = load(data);
-
-          $$$('.nav > li')
-            .map((i, el) => {
-              const episode = {
-                id: $$$(el).find('a').attr('id')!.split('-')[1],
-                title: $$$(el).find('a').attr('title')!,
-                number: parseInt($$$(el).find('a').attr('title')!.split(':')[0].slice(3).trim()),
-                season: season,
-                url: `${this.baseUrl}/ajax/v2/episode/servers/${$$$(el).find('a').attr('id')!.split('-')[1]}`,
-              };
-              movieInfo.episodes?.push(episode);
-            })
-            .get();
+        
+          $$$('ul.nav > li.nav-item > a').each((i, el) => {
+            const episodeId = $$$(el).attr('data-id')!;
+            const episodeTitle = $$$(el).attr('title')!;
+            const episodeNumber = parseInt(episodeTitle.match(/Eps (\d+):/i)?.[1] || '0');
+        
+            const episode = {
+              id: episodeId,
+              title: episodeTitle,
+              number: episodeNumber,
+              season: season,
+              url: `${this.baseUrl}/ajax/episode/servers/${episodeId}`,
+            };
+            movieInfo.episodes?.push(episode);
+          });
+        
           season++;
-        }
-      } else {
-        movieInfo.episodes = [
-          {
-            id: uid,
-            title: movieInfo.title,
-            url: `${this.baseUrl}/ajax/movie/episodes/${uid}`,
-          },
-        ];
-      }
-
+        }        
+      } 
       return movieInfo;
     } catch (err) {
+      console.log(err, 'err');
       throw new Error((err as Error).message);
     }
   };
@@ -183,20 +208,20 @@ class FlixHQ extends MovieParser {
     if (episodeId.startsWith('http')) {
       const serverUrl = new URL(episodeId);
       switch (server) {
-        case StreamingServers.MixDrop:
+        case StreamingServers.Voe:
           return {
             headers: { Referer: serverUrl.href },
-            sources: await new MixDrop(this.proxyConfig, this.adapter).extract(serverUrl),
+            ...(await new Voe(this.proxyConfig, this.adapter).extract(serverUrl)),
           };
-        case StreamingServers.VidCloud:
+        case StreamingServers.MegaCloud:
           return {
             headers: { Referer: serverUrl.href },
-            ...(await new VidCloud(this.proxyConfig, this.adapter).extract(serverUrl)),
+            ...(await new VidCloud(this.proxyConfig, this.adapter).extract(serverUrl, true)),
           };
         case StreamingServers.UpCloud:
           return {
             headers: { Referer: serverUrl.href },
-            ...(await new VidCloud(this.proxyConfig, this.adapter).extract(serverUrl)),
+            ...(await new VidCloud(this.proxyConfig, this.adapter).extract(serverUrl, true)),
           };
         default:
           return {
@@ -216,7 +241,7 @@ class FlixHQ extends MovieParser {
       }
 
       const { data } = await this.client.get(
-        `${this.baseUrl}/ajax/get_link/${servers[i].url.split('.').slice(-1).shift()}`
+        `${this.baseUrl}/ajax/episode/sources/${servers[i].url}`
       );
 
       const serverUrl: URL = new URL(data.link);
@@ -235,32 +260,28 @@ class FlixHQ extends MovieParser {
    */
   override fetchEpisodeServers = async (episodeId: string, mediaId: string): Promise<IEpisodeServer[]> => {
     if (!episodeId.startsWith(this.baseUrl + '/ajax') && !mediaId.includes('movie'))
-      episodeId = `${this.baseUrl}/ajax/v2/episode/servers/${episodeId}`;
-    else episodeId = `${this.baseUrl}/ajax/movie/episodes/${episodeId}`;
+      episodeId = `${this.baseUrl}/ajax/episode/servers/${episodeId}`;
+    else episodeId = `${this.baseUrl}/ajax/episode/list/${episodeId}`;
 
     try {
       const { data } = await this.client.get(episodeId);
       const $ = load(data);
 
       const servers = $('.nav > li')
-        .map((i, el) => {
-          const server = {
-            name: mediaId.includes('movie')
-              ? $(el).find('a').attr('title')!.toLowerCase()
-              : $(el).find('a').attr('title')!.slice(6).trim().toLowerCase(),
-            url: `${this.baseUrl}/${mediaId}.${
-              !mediaId.includes('movie')
-                ? $(el).find('a').attr('data-id')
-                : $(el).find('a').attr('data-linkid')
-            }`.replace(
-              !mediaId.includes('movie') ? /\/tv\// : /\/movie\//,
-              !mediaId.includes('movie') ? '/watch-tv/' : '/watch-movie/'
-            ),
-          };
-          return server;
-        })
-        .get();
-      return servers;
+      .map((i, el) => {
+        const server = {
+          name: mediaId.includes('movie')
+            ? $(el).find('a').find('span').text().trim().toLowerCase()
+            : $(el).find('a').find('span').text().trim().toLowerCase(),
+          url: !mediaId.includes('movie') 
+            ? $(el).find('a').attr('data-id') || ''  // Fallback to empty string
+            : $(el).find('a').attr('data-linkid') || '',     // Fallback to empty string
+        };
+        return server;
+      })
+      .get();
+
+    return servers;
     } catch (err) {
       throw new Error((err as Error).message);
     }
@@ -275,18 +296,15 @@ class FlixHQ extends MovieParser {
         'section.block_area:contains("Latest Movies") > div:nth-child(2) > div:nth-child(1) > div.flw-item'
       )
         .map((i, el) => {
-          const releaseDate = $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text();
+          const releaseDate = $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text();
           const movie: any = {
             id: $(el).find('div.film-poster > a').attr('href')?.slice(1)!,
             title: $(el).find('div.film-detail > h3.film-name > a').attr('title')!,
             url: `${this.baseUrl}${$(el).find('div.film-poster > a').attr('href')}`,
             image: $(el).find('div.film-poster > img').attr('data-src'),
             releaseDate: isNaN(parseInt(releaseDate)) ? undefined : releaseDate,
-            duration: $(el).find('div.film-detail > div.fd-infor > span.fdi-duration').text() || null,
-            type:
-              $(el).find('div.film-detail > div.fd-infor > span.float-right').text() === 'Movie'
-                ? TvType.MOVIE
-                : TvType.TVSERIES,
+            rating: $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text() || null,
+            type: TvType.MOVIE,
           };
           return movie;
         })
@@ -311,12 +329,11 @@ class FlixHQ extends MovieParser {
             title: $(el).find('div.film-detail > h3.film-name > a').attr('title')!,
             url: `${this.baseUrl}${$(el).find('div.film-poster > a').attr('href')}`,
             image: $(el).find('div.film-poster > img').attr('data-src'),
-            season: $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text(),
-            latestEpisode: $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text() || null,
-            type:
-              $(el).find('div.film-detail > div.fd-infor > span.float-right').text() === 'Movie'
-                ? TvType.MOVIE
-                : TvType.TVSERIES,
+            season:
+              $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[0] || null,
+            latestEpisode:
+              $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[1] || null,
+            type: TvType.TVSERIES,
           };
           return tvshow;
         })
@@ -334,18 +351,15 @@ class FlixHQ extends MovieParser {
 
       const movies = $('div#trending-movies div.film_list-wrap div.flw-item')
         .map((i, el) => {
-          const releaseDate = $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text();
+          const releaseDate = $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text();
           const movie: any = {
             id: $(el).find('div.film-poster > a').attr('href')?.slice(1)!,
             title: $(el).find('div.film-detail > h3.film-name > a').attr('title')!,
             url: `${this.baseUrl}${$(el).find('div.film-poster > a').attr('href')}`,
             image: $(el).find('div.film-poster > img').attr('data-src'),
             releaseDate: isNaN(parseInt(releaseDate)) ? undefined : releaseDate,
-            duration: $(el).find('div.film-detail > div.fd-infor > span.fdi-duration').text() || null,
-            type:
-              $(el).find('div.film-detail > div.fd-infor > span.float-right').text() === 'Movie'
-                ? TvType.MOVIE
-                : TvType.TVSERIES,
+            rating: $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text() || null,
+            type: TvType.MOVIE,
           };
           return movie;
         })
@@ -368,12 +382,11 @@ class FlixHQ extends MovieParser {
             title: $(el).find('div.film-detail > h3.film-name > a').attr('title')!,
             url: `${this.baseUrl}${$(el).find('div.film-poster > a').attr('href')}`,
             image: $(el).find('div.film-poster > img').attr('data-src'),
-            season: $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text(),
-            latestEpisode: $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text() || null,
-            type:
-              $(el).find('div.film-detail > div.fd-infor > span.float-right').text() === 'Movie'
-                ? TvType.MOVIE
-                : TvType.TVSERIES,
+            season:
+              $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[0] || null,
+            latestEpisode:
+              $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[1] || null,
+            type: TvType.TVSERIES,
           };
           return tvshow;
         })
@@ -407,19 +420,20 @@ class FlixHQ extends MovieParser {
             url: `${this.baseUrl}${$(el).find('div.film-poster > a').attr('href')}`,
             image: $(el).find('div.film-poster > img').attr('data-src'),
             type:
-              $(el).find('div.film-detail > div.fd-infor > span.float-right').text() === 'Movie'
+              $(el).find('div.film-poster > a').attr('href')?.slice(1).split('/')[0].toLowerCase() === 'movie'
                 ? TvType.MOVIE
                 : TvType.TVSERIES,
           };
-          const season = $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text();
+          const season =
+            $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[0] ?? null;
           const latestEpisode =
-            $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text() ?? null;
+            $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[1] ?? null;
           if (resultItem.type === TvType.TVSERIES) {
             resultItem.season = season;
             resultItem.latestEpisode = latestEpisode;
           } else {
-            resultItem.releaseDate = season;
-            resultItem.duration = latestEpisode;
+            resultItem.rating = $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text();
+            resultItem.releaseDate = $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text();
           }
           result.results.push(resultItem);
         })
@@ -450,23 +464,24 @@ class FlixHQ extends MovieParser {
         .each((i, el) => {
           const resultItem: IMovieResult = {
             id: $(el).find('div.film-poster > a').attr('href')?.slice(1) ?? '',
-            title: $(el).find('div.film-detail > h2 > a').attr('title') ?? '',
+            title: $(el).find('div.film-detail > h2.film-name > a').attr('title') ?? '',
             url: `${this.baseUrl}${$(el).find('div.film-poster > a').attr('href')}`,
             image: $(el).find('div.film-poster > img').attr('data-src'),
             type:
-              $(el).find('div.film-detail > div.fd-infor > span.float-right').text() === 'Movie'
+              $(el).find('div.film-poster > a').attr('href')?.slice(1).split('/')[0].toLowerCase() === 'movie'
                 ? TvType.MOVIE
                 : TvType.TVSERIES,
           };
-          const season = $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text();
+          const season =
+            $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[0] ?? null;
           const latestEpisode =
-            $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text() ?? null;
+            $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text().split(':')[1] ?? null;
           if (resultItem.type === TvType.TVSERIES) {
             resultItem.season = season;
             resultItem.latestEpisode = latestEpisode;
           } else {
-            resultItem.releaseDate = season;
-            resultItem.duration = latestEpisode;
+            resultItem.rating = $(el).find('div.film-detail > div.fd-infor > span:nth-child(1)').text();
+            resultItem.releaseDate = $(el).find('div.film-detail > div.fd-infor > span:nth-child(3)').text();
           }
           result.results.push(resultItem);
         })
@@ -479,4 +494,4 @@ class FlixHQ extends MovieParser {
   };
 }
 
-export default FlixHQ;
+export default MyFlixerz;
